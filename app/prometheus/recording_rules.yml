@@ -1,0 +1,22 @@
+groups:
+  - name: recording_rules
+    rules:
+
+      # Процент использования памяти (recording rule)
+      - record: instance:memory_usage_percent
+        expr: |
+          100 * (1 - (
+            node_memory_MemAvailable_bytes /
+            node_memory_MemTotal_bytes
+          ))
+
+      # Процент использования CPU (recording rule)
+      - record: instance:cpu_usage_percent
+        expr: |
+          100 - (avg by(instance) (
+            rate(node_cpu_seconds_total{mode="idle"}[5m])
+          ) * 100)
+
+      # Request rate для бэкенда
+      - record: job:http_requests:rate5m
+        expr: sum by(job) (rate(http_requests_total[5m]))

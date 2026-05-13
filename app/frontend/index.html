@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ShopApp — Product Catalog</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; color: #333; }
+    header { background: #1a1a2e; color: white; padding: 16px 32px; display: flex; align-items: center; justify-content: space-between; }
+    header h1 { font-size: 24px; letter-spacing: 1px; }
+    .filters { padding: 20px 32px; display: flex; gap: 10px; flex-wrap: wrap; }
+    .filter-btn { padding: 8px 18px; border: 2px solid #1a1a2e; border-radius: 20px; background: white; cursor: pointer; font-size: 14px; transition: all 0.2s; }
+    .filter-btn.active, .filter-btn:hover { background: #1a1a2e; color: white; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 20px; padding: 0 32px 32px; }
+    .card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); transition: transform 0.2s; }
+    .card:hover { transform: translateY(-4px); }
+    .card-category { font-size: 11px; text-transform: uppercase; color: #888; margin-bottom: 6px; }
+    .card-name { font-size: 17px; font-weight: 600; margin-bottom: 8px; }
+    .card-desc { font-size: 13px; color: #666; margin-bottom: 12px; min-height: 36px; }
+    .card-footer { display: flex; align-items: center; justify-content: space-between; }
+    .price { font-size: 20px; font-weight: 700; color: #1a1a2e; }
+    .stock { font-size: 12px; color: #888; }
+    .btn { padding: 8px 16px; background: #e94560; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; transition: background 0.2s; }
+    .btn:hover { background: #c73652; }
+    .btn:disabled { background: #ccc; cursor: not-allowed; }
+    .toast { position: fixed; bottom: 24px; right: 24px; background: #1a1a2e; color: white; padding: 14px 22px; border-radius: 10px; font-size: 14px; opacity: 0; transition: opacity 0.3s; z-index: 999; }
+    .toast.show { opacity: 1; }
+    .loading { text-align: center; padding: 60px; font-size: 16px; color: #888; }
+    .status-bar { background: #e8f5e9; border-left: 4px solid #4caf50; padding: 10px 32px; font-size: 13px; color: #388e3c; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🛍️ ShopApp Catalog</h1>
+    <span id="status-text" style="font-size:13px; opacity:0.7;">Connecting...</span>
+  </header>
+  <div class="status-bar" id="status-bar">Loading products...</div>
+  <div class="filters" id="filters">
+    <button class="filter-btn active" onclick="filterBy('all')">All</button>
+  </div>
+  <div class="grid" id="grid"><div class="loading">Loading...</div></div>
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const API = 'http://localhost:8000';
+    let allProducts = [];
+
+    async function loadProducts(category = null) {
+      try {
+        const url = category && category !== 'all' ? `${API}/products?category=${category}` : `${API}/products`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error('Server error');
+        allProducts = await res.json();
+        renderProducts(allProducts);
+        document.getElementById('status-bar').textContent = `✅ ${allProducts.length} products loaded`;
+        document.getElementById('status-text').textContent = 'API Connected';
+        buildFilters(allProducts);
+      } catch(e) {
+        document.getElementById('grid').innerHTML = '<div class="loading">❌ Cannot connect to backend. Make sure docker-compose is running.</div>';
+        document.getElementById('status-bar').style.background = '#ffebee';
+        document.getElementById('status-bar').style.borderColor = '#f44336';
+        document.getElementById('status-bar').style.color = '#c62828';
+        document.getElementById('status-bar').textContent = '❌ Backend unavailable';
+      }
+    }
+
+    function buildFilters(products) {
+      const cats = [...new Set(products.map(p => p.category).filter(Boolean))];
+      const div = document.getElementById('filters');
+      div.innerHTML = '<button class="filter-btn active" onclick="filterBy(\'all\', this)">All</button>';
+      cats.forEach(cat => {
+        const btn = document.createElement('button');
+        btn.className = 'filter-btn';
+        btn.textContent = cat;
+        btn.onclick = () => filterBy(cat, btn);
+        div.appendChild(btn);
+      });
+    }
+
+    function filterBy(cat, btn) {
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      if (btn) btn.classList.add('active');
+      if (cat === 'all') renderProducts(allProducts);
+      else renderProducts(allProducts.filter(p => p.category === cat));
+    }
+
+    function renderProducts(products) {
+      const grid = document.getElementById('grid');
+      if (!products.length) { grid.innerHTML = '<div class="loading">No products found</div>'; return; }
+      grid.innerHTML = products.map(p => `
+        <div class="card">
+          <div class="card-category">${p.category || 'General'}</div>
+          <div class="card-name">${p.name}</div>
+          <div class="card-desc">${p.description || ''}</div>
+          <div class="card-footer">
+            <div>
+              <div class="price">$${p.price}</div>
+              <div class="stock">${p.stock > 0 ? `In stock: ${p.stock}` : 'Out of stock'}</div>
+            </div>
+            <button class="btn" onclick="checkout(${p.id}, '${p.name}')" ${p.stock === 0 ? 'disabled' : ''}>Buy</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function checkout(id, name) {
+      try {
+        const res = await fetch(`${API}/checkout`, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({product_id: id, quantity: 1})
+        });
+        const data = await res.json();
+        if (res.ok) {
+          showToast(`✅ Order placed for "${name}"!`);
+          loadProducts();
+        } else {
+          showToast(`❌ ${data.detail}`);
+        }
+      } catch(e) {
+        showToast('❌ Connection error');
+      }
+    }
+
+    function showToast(msg) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 3000);
+    }
+
+    loadProducts();
+  </script>
+</body>
+</html>

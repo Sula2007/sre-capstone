@@ -1,0 +1,43 @@
+groups:
+  - name: shop_alerts
+    rules:
+
+      # WARNING: высокое использование CPU
+      - alert: HighCPUUsage
+        expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[2m])) * 100) > 70
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage on {{ $labels.instance }}"
+          description: "CPU usage is above 70% for more than 1 minute. Current: {{ $value | printf \"%.1f\" }}%"
+
+      # CRITICAL: очень высокое использование CPU
+      - alert: CriticalCPUUsage
+        expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[2m])) * 100) > 90
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "CRITICAL CPU usage on {{ $labels.instance }}"
+          description: "CPU usage is above 90%. Immediate action required. Current: {{ $value | printf \"%.1f\" }}%"
+
+      # WARNING: высокое использование памяти
+      - alert: HighMemoryUsage
+        expr: instance:memory_usage_percent > 80
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage"
+          description: "Memory usage above 80%. Current: {{ $value | printf \"%.1f\" }}%"
+
+      # CRITICAL: бэкенд недоступен
+      - alert: BackendDown
+        expr: up{job="backend"} == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Backend service is DOWN"
+          description: "The shop backend API is not responding. SLO breach imminent."

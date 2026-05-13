@@ -1,0 +1,39 @@
+groups:
+  - name: sre_alerts
+    rules:
+
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status="500"}[5m]) > 0.01
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High HTTP 500 Error Rate"
+          description: "Shop API is returning 500 errors."
+
+      - alert: HighLatency
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 0.5
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High Request Latency on Shop API"
+          description: "P95 latency exceeded 500ms."
+
+      - alert: ServiceDown
+        expr: up{job="shop-app"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Shop API is DOWN"
+          description: "shop-app target is not responding."
+
+      - alert: CheckoutFailureSpike
+        expr: rate(checkout_failure_total[5m]) > 0.05
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Checkout Failures Increasing"
+          description: "Too many failed checkout attempts."
